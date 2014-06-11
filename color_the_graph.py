@@ -6,13 +6,10 @@
 #
 ####################################################### 
 
-#import numpy as np
-import gv
 import sys
 
 # Import pygraph
 from pygraph.classes.graph import graph
-from pygraph.readwrite.dot import write, read
 
 from random import random
 
@@ -331,10 +328,10 @@ def draw_graph(gr):
                         gr_ext.add_edge((node,n)) 
         
 
-    dot = write(gr_ext)
-    gvv = gv.readstring(dot)
-    gv.layout(gvv,'dot')
-    gv.render(gvv,'png','community.png')    
+    #dot = write(gr_ext)
+    #gvv = gv.readstring(dot)
+    #gv.layout(gvv,'dot')
+    #gv.render(gvv,'png','community.png')    
 
 
 if __name__ == '__main__':
