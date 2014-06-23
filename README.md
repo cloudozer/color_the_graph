@@ -8,24 +8,11 @@ Color_the_graph is an implementation of the community detection algorithm descri
 Usha Nandini, Reka Albert, and Soundar Kumara - Near linear time algorithm to detect community structures
 in large-scale networks.
 
-The algorithm uses label propagation method, which starts from the random labels assigned to ech node.
+The algorithm uses label propagation method implemented in two variants:
+(1) Async: starts from the random labels assigned to ech node.
 Then each node updates its label depending on which label its neighbours mostly have.
+See ./ctg_py
+(2) Sync: spawns one process for each network node. Then nodes exchange their labels
+until either predefined threshold or maximum numner of cycles are exceeded. 
+See ./ctg_erl
 
-## Prerequisites
-
-Color_the_graph requires python-graph.
-
-## Install and run
-
-	% git clone https://github.com/cloudozer/color_the_graph
-	% python color_the_grap.py sample.data
-
-## Data format
-
-The data file contains graph edges in the following format:
-
-	[{<<"10.192.20.102">>,<<"199.59.150.39">>},
-	 {<<"10.120.3.25">>,<<"10.120.10.97">>},
-	 {<<"74.125.224.198">>,<<"2620:10a:6000:2000::3db">>},
-	 ...,
-	]
