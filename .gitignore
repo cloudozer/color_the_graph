@@ -1,4 +1,6 @@
 *.pyc
 *.dat
 *.png
+*.beam
+.DS_Store
 
