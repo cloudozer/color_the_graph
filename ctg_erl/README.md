@@ -16,8 +16,11 @@ None.
 
 ## Install and run
 
-	% git clone https://github.com/cloudozer/color_the_graph/ctg_erl
-	% erl main("sample.data", <Threshold>).
+	% git clone https://github.com/cloudozer/color_the_graph
+	% cd ctg_erl
+	% erl 
+	1> c(lda_dist).
+	2> lpa_dist:main("sample.data", <Threshold>).
 
 Threshold must be any number from 0 to 1. 
 
