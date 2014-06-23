@@ -36,7 +36,7 @@ def main(input_data_file):
     print_communities(gr)
     #print_communities_1(data_file)
     
-    #draw_graph(gr)
+    draw_graph(gr)
 
 
     
