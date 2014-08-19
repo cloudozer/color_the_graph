@@ -3,19 +3,20 @@
 %% 
 
 -module(lpa_dist).
--export([main/2,start_node/3]).
+-export([main/3,start_node/3]).
 
 
-main(File_name, Threshold) ->
+main(File_name, Threshold, Limit) ->
 	% open file and read the edges
 	% spawn a new process for each node
 	% send pid for each neigbor
-	Proc_dict = read_graph_data1(File_name),
-
+%SN	Proc_dict = read_graph_data1(File_name),
+	Proc_dict = read_graph_data(File_name),
+        
 	% start propagation
 	% issue ticks to synchronize message exchange
 	% if convergence is higher than some threshold stop
-	Community_dict = run_LPA(Proc_dict,Threshold),
+	Community_dict = run_LPA(Proc_dict,Threshold,Limit),
 	
 	% print communities statistics
 	io:format("Communities:~n~p~n",[dict:to_list(Community_dict)]),
@@ -30,10 +31,10 @@ main(File_name, Threshold) ->
 
 
 % runs iterations until convergence exceeds some Threshold
-run_LPA(Proc_dict,Threshold) ->
-	run_LPA(0,Proc_dict,Threshold).
+run_LPA(Proc_dict,Threshold,Limit) ->
+	run_LPA(0,Proc_dict,Threshold,Limit).
 
-run_LPA(Tick,Proc_dict,Threshold) ->
+run_LPA(Tick,Proc_dict,Threshold,Limit) ->
 	% starts next iteration of LPA
 	% by broadcasting Tick message
 	All_nodes = [ Val || {_,Val} <- dict:to_list(Proc_dict)],
@@ -42,8 +43,8 @@ run_LPA(Tick,Proc_dict,Threshold) ->
 	% then collects convergence statistics and community memberships
 	% if convergence exceeds Threshold sends STOP message
 	{Convergence,Label_dict} = collect_labels(Tick,dict:size(Proc_dict)),
-	case Convergence >= Threshold orelse Tick > 20 of 
-		false-> run_LPA(Tick+1,Proc_dict,Threshold);
+	case Convergence >= Threshold orelse Tick > Limit of 
+		false-> run_LPA(Tick+1,Proc_dict,Threshold,Limit);
 		true -> 
 			broadcast({quit},All_nodes),
 			Label_dict
@@ -92,7 +93,8 @@ read_graph_data(Device, Proc_dict) ->
         	file:close(Device),
         	Proc_dict;
         Line -> 
-        	case parse_edge(Line) of
+% SN       	case parse_edge(Line) of
+                case parse_edge1(Line) of
         		{error} ->
 		        	io:format("Line: '~s'~n cannot be parsed. Edge dropped~n",[Line]),
 		        	Proc_dict2 = Proc_dict;
@@ -175,27 +177,35 @@ start_node(Master,Neighbors,{Curr_lbl,Old_lbl}) ->
 			start_node(Master,Neighbors1,{Curr_lbl,Old_lbl});
 
 		{tick, Tick} ->
-			broadcast({label,Tick,Curr_lbl},Neighbors),
-			New_lbl = update_label(Tick,length(Neighbors)),
-			case {New_lbl,Curr_lbl,Old_lbl} of
-				{New_lbl,New_lbl,_} -> % converged
-					Converged = 1,
-					Curr1 = New_lbl,
-					Old1 = Curr_lbl;
-				{New_lbl,Curr_lbl,New_lbl} -> % oscilates
-					Converged = 0.5,
-					case length(Neighbors) > 10 of
-						true -> Curr1 = Curr_lbl;
-						false-> Curr1 = New_lbl
-					end,
-					%Curr1 = likely_pick_first([Curr_lbl,New_lbl],0.7),
-					Old1 = Curr_lbl;
-				_ ->
-					Converged = 0,
-					Curr1 = New_lbl,
-					Old1 = Curr1
-			end,
-
+                        broadcast({label,Tick,Curr_lbl},Neighbors),
+                        case (random:uniform(100) < 65) of
+                            true ->
+                                New_lbl = update_label(Tick,length(Neighbors)),
+                                case {New_lbl,Curr_lbl,Old_lbl} of
+                                        {New_lbl,New_lbl,_} -> % converged
+                                                Converged = 1,
+                                                Curr1 = New_lbl,
+                                                Old1 = Curr_lbl;
+                                        {New_lbl,Curr_lbl,New_lbl} -> % oscilates
+                                                Converged = 0.5,
+                                                case length(Neighbors) > 10 of
+                                                        true -> Curr1 = Curr_lbl;
+                                                        false-> Curr1 = New_lbl
+                                                end,
+                                                %Curr1 = likely_pick_first([Curr_lbl,New_lbl],0.7),
+                                                Old1 = Curr_lbl;
+                                        _ ->
+                                                Converged = 0,
+                                                Curr1 = New_lbl,
+                                                Old1 = Curr1
+                                end;
+                             _ ->
+                                %% dont change label
+                                    dont_update_label(Tick, length(Neighbors)),
+                                    Converged = 0.5,
+                                    Curr1 = Curr_lbl,
+                                    Old1 = Old_lbl
+                        end,
 			Master ! {label,Tick,Curr1,Converged},
 			start_node(Master,Neighbors,{Curr1,Old1});
 
@@ -223,25 +233,37 @@ update_label(Tick,N) ->
 	update_label(Tick,N,[]).
 
 update_label(_,0,Labels) ->
-	Freq_labels = lists:sort([{length(lists:filter(fun(X)->X==Lb end,Labels)),Lb} || 
-		Lb <- lists:usort(Labels) ]),
-	pick_the_most_frequent(lists:reverse(Freq_labels));
+	Freq_labels = lists:reverse(lists:sort([{length(lists:filter(fun(X)->X==Lb end,Labels)),Lb} || 
+		Lb <- lists:usort(Labels) ])),
+	%io:format("Frequency of labels:~P~n",[Freq_labels,7]),
+	pick_the_most_frequent(Freq_labels);
 update_label(Tick,N,Labels) ->
 	receive
 		{label, Tick, Label} ->
 			update_label(Tick,N-1,[Label|Labels])
 	end.
 
-
+dont_update_label(_, 0) ->
+    ok;
+dont_update_label(Tick, N) ->
+	receive
+		{label, Tick, _} ->
+                    dont_update_label(Tick, N-1)	
+	end.
 
 % pick the element with largest frequency: 
 % {el,freq} in the list of sorted tuples
-pick_the_most_frequent([{_,F1}|_]=Ls) ->
+pick_the_most_frequent([{F1,_}|_]=Ls) ->
 	pick_the_most_frequent([],F1,Ls).
 
-pick_the_most_frequent(Acc,F1,[{Lb,F1}|Rest]) ->
+pick_the_most_frequent(Acc,F1,[{F1,Lb}|Rest]) ->
 	pick_the_most_frequent([Lb|Acc],F1,Rest);
+	
 pick_the_most_frequent(Acc,_,_) ->
+	%case length(Acc) >1 of
+	%	true -> io:format("Tie-break: ~w candidates~n",[length(Acc)]);
+	%	false-> ok
+	%end,
 	lists:nth(random:uniform(length(Acc)),Acc).
 
 
@@ -256,4 +278,16 @@ parse_edge(Line) ->
 		false->
 			{error}
 	end.
-	
+
+%SN
+parse_edge1(Line) ->
+        [Ls1|_] = string:tokens(Line, "\n"),
+	Ls = string:tokens(Ls1,"\t"),
+       %io:format("Ls = ~p~n", [Ls]),
+	case length(Ls)==2 of
+		true ->
+			[V1,V2]=Ls,
+			{ok,{V1,V2}};
+		false->
+			{error}
+	end.
